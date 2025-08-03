@@ -1,16 +1,185 @@
 package main
 
 import (
+	"archive/zip"
+	"encoding/json"
+	"flag"
 	"fmt"
-	"image/png"
+	"io"
+	"net/http"
 	"os"
-	"time"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/manifoldco/promptui"
-	"github.com/vcaesar/screenshot"
+	"github.com/schollz/progressbar/v3"
 )
 
+var (
+	config         Config
+	appdataDir     string
+	configFilePath string
+)
 
+func extractFFmpegExe(zipPath, destDir string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		if strings.HasSuffix(f.Name, "bin/ffmpeg.exe") || strings.HasSuffix(f.Name, "bin\\ffmpeg.exe") {
+			rc, err := f.Open()
+			if err != nil {
+				return err
+			}
+			defer rc.Close()
+
+			os.MkdirAll(destDir, 0755)
+			outPath := filepath.Join(destDir, "ffmpeg.exe")
+			outFile, err := os.Create(outPath)
+			if err != nil {
+				return err
+			}
+			defer outFile.Close()
+
+			_, err = io.Copy(outFile, rc)
+			return err
+		}
+	}
+
+	return os.ErrNotExist
+}
+
+type Config struct {
+	SaveLocation string `json:"save_location"`
+	RecordFunc   bool   `json:"record_func_enabled"`
+}
+
+func setConfig(key string, value any) {
+	data := make(map[string]any)
+	content, err := os.ReadFile(configFilePath)
+	if err == nil {
+		_ = json.Unmarshal(content, &data)
+	}
+
+	data[key] = value
+
+	updData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	os.WriteFile(configFilePath, updData, 0644)
+	initConfig()
+}
+
+func initConfig() {
+	var err error
+	appdataDir, err = os.UserConfigDir()
+	if err != nil {
+		panic(err)
+	}
+	appdataDir = filepath.Join(appdataDir, "captr")
+	configFilePath = filepath.Join(appdataDir, ".captr_config.json")
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+		home, _ := os.UserHomeDir()
+		config = Config{
+			SaveLocation: filepath.Join(home, "Desktop"),
+			RecordFunc:   true,
+		}
+		data, err := json.MarshalIndent(config, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		os.Mkdir(appdataDir, 0755)
+		os.WriteFile(configFilePath, data, 0644)
+	} else {
+		data, err := os.ReadFile(configFilePath)
+		if err != nil {
+			panic(err)
+		}
+		if err := json.Unmarshal(data, &config); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func initDownloads() {
+	dwnPath := filepath.Join(appdataDir, "bin")
+	if _, err := os.Stat(filepath.Join(dwnPath, "ffmpeg.exe")); err == nil {
+		return
+	}
+	if !config.RecordFunc {
+		return
+	}
+	cmd := exec.Command("ffmpeg", "-version")
+	if err := cmd.Run(); err == nil {
+		return
+	}
+	fmt.Println("Captr requires ffmpeg to record videos. However, the screenshotting functionality is not affected.")
+	prompt := promptui.Select{
+		Label: "Choose your action",
+		Items: []string{
+			"Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
+			"Keep only screenshotting functionality",
+		},
+	}
+	i, _, err := prompt.Run()
+	if err != nil {
+		fmt.Println("Action Cancelled")
+		os.Exit(1)
+	}
+	if i == 0 {
+		resp, err := http.Get("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip")
+		if err != nil {
+			fmt.Println("Couldn't download ffmpeg")
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+		bar := progressbar.DefaultBytes(
+			resp.ContentLength,
+			"Downloading ffmpeg",
+		)
+
+		out, err := os.Create(filepath.Join(os.TempDir(), "ffmpeg_captr.zip"))
+		if err != nil {
+			fmt.Println("Couldn't download ffmpeg")
+			os.Exit(1)
+		}
+		defer out.Close()
+
+		_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
+		if err != nil {
+			fmt.Printf("Couldn't download ffmpeg.")
+			os.Exit(1)
+		}
+		extractFFmpegExe(filepath.Join(os.TempDir(), "ffmpeg_captr.zip"), dwnPath)
+		fmt.Printf("FFMPEG has been downloaded to %s", dwnPath)
+	} else {
+		setConfig("record_func_enabled", false)
+	}
+}
+
+func init() {
+	if !(runtime.GOOS == "windows" && runtime.GOARCH == "amd64") {
+		panic("Captr is only supported on Windows x64")
+	}
+	initConfig()
+	configMode := flag.Bool("config", false, "Configure Captr")
+	flag.Parse()
+	if *configMode {
+		cmd := exec.Command("notepad.exe", configFilePath)
+		if err := cmd.Start(); err != nil {
+			fmt.Println("Error starting command:", err)
+			return
+		}
+		os.Exit(0)
+	}
+	initDownloads()
+}
 
 func main() {
 	fmt.Println(`
@@ -25,7 +194,7 @@ ________/\\\\\\\\\__________________________________________________________
         _______\/////////___\////////\//__\///______________\/////____\///__________
 
 	`)
-
+	fmt.Println("Open config file by passing the --config flag")
 	capture_ops := []string{"Record full screen", "Record specific window", "Screenshot specific window", "Screenshot full screen"}
 	prompt := promptui.Select{
 		Label:        "Select Action",
@@ -38,8 +207,10 @@ ________/\\\\\\\\\__________________________________________________________
 		fmt.Print("Action Cancelled.")
 		return
 	}
-	
+
 	switch i {
+	case 2:
+		Screenshot_Window()
 	case 3:
 		Screenshot_Display()
 	}
