@@ -24,11 +24,11 @@ jobs:
           go-version: '1.24'
 
       - name: Build
-        run: go build -v -o Captr_Release_{{ github.ref_name }}.exe
+        run: go build -v -o Captr_Release_${{ github.ref_name }}.exe
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
-          files: Captr_Release_{{ github.ref_name }}.exe
+          files: Captr_Release_${{ github.ref_name }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
