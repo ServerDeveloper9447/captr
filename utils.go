@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"os/exec"
+	"path/filepath"
 	"syscall"
 	"unsafe"
 
@@ -414,4 +416,13 @@ func ActivateWindowAndGetBounds(hwnd uintptr) (WindowBounds, error) {
 	}
 
 	return bounds, nil
+}
+
+func getFfmpegPath() string {
+	cmd := exec.Command("ffmpeg", "-version")
+	if err := cmd.Run(); err == nil {
+		return "ffmpeg"
+	}
+
+	return filepath.Join(appdataDir, "bin", "ffmpeg.exe")
 }

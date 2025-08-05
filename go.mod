@@ -38,6 +38,7 @@ require (
 	github.com/vcaesar/screenshot v0.11.1 // indirect
 	github.com/vcaesar/tt v0.20.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	golang.design/x/hotkey v0.4.1 // indirect
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/image v0.29.0 // indirect

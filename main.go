@@ -57,6 +57,7 @@ func extractFFmpegExe(zipPath, destDir string) error {
 type Config struct {
 	SaveLocation string `json:"save_location"`
 	RecordFunc   bool   `json:"record_func_enabled"`
+	RecordingOpts RecordingOptions `json:"recording_options"`
 }
 
 func setConfig(key string, value any) {
@@ -110,6 +111,7 @@ func initConfig() {
 func initDownloads() {
 	dwnPath := filepath.Join(appdataDir, "bin")
 	if _, err := os.Stat(filepath.Join(dwnPath, "ffmpeg.exe")); err == nil {
+		mergeRecordingDefaults()
 		return
 	}
 	if !config.RecordFunc {
@@ -117,6 +119,7 @@ func initDownloads() {
 	}
 	cmd := exec.Command("ffmpeg", "-version")
 	if err := cmd.Run(); err == nil {
+		mergeRecordingDefaults()
 		return
 	}
 	fmt.Println("Captr requires ffmpeg to record videos. However, the screenshotting functionality is not affected.")
@@ -158,6 +161,7 @@ func initDownloads() {
 		}
 		extractFFmpegExe(filepath.Join(os.TempDir(), "ffmpeg_captr.zip"), dwnPath)
 		fmt.Printf("FFMPEG has been downloaded to %s", dwnPath)
+		mergeRecordingDefaults()
 	} else {
 		setConfig("record_func_enabled", false)
 	}
@@ -209,6 +213,8 @@ ________/\\\\\\\\\__________________________________________________________
 	}
 
 	switch i {
+	case 0:
+		RecordDisplay()
 	case 2:
 		Screenshot_Window()
 	case 3:
