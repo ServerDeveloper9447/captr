@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -12,8 +14,26 @@ import (
 
 	"github.com/JamesHovious/w32"
 	"github.com/manifoldco/promptui"
+	hook "github.com/robotn/gohook"
 	"golang.design/x/clipboard"
 )
+
+func setConfig(key string, value any) {
+	data := make(map[string]any)
+	content, err := os.ReadFile(configFilePath)
+	if err == nil {
+		_ = json.Unmarshal(content, &data)
+	}
+
+	data[key] = value
+
+	updData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	os.WriteFile(configFilePath, updData, 0644)
+	initConfig()
+}
 
 var (
 	user32          = syscall.NewLazyDLL("user32.dll")
@@ -47,7 +67,7 @@ func CopyImgToClipboard(img image.Image) {
 		return
 	}
 	clipboard.Write(clipboard.FmtImage, buf.Bytes())
-	fmt.Println("Image copied to clipboard")
+	fmt.Println("\nScreenshot copied to clipboard")
 }
 
 func SetProcessDPIAware() error {
@@ -425,4 +445,95 @@ func getFfmpegPath() string {
 	}
 
 	return filepath.Join(appdataDir, "bin", "ffmpeg.exe")
+}
+
+func ternary[T any](cond bool, a, b T) T {
+	if cond {
+		return a
+	}
+	return b
+}
+
+func RegisterHotkey() ([]string, string) {
+	var (
+		modKeys = map[uint16]string{
+			29:   "ctrl",  // LCtrl
+			3613: "ctrl",  // RCtrl
+			56:   "alt",   // LAlt
+			3640: "alt",   // RAlt
+			42:   "shift", // LShift
+			54:   "shift", // RShift
+		}
+
+		keyOrder = []string{"ctrl", "alt", "shift"}
+
+		keyMap = map[uint16]string{
+			2: "1", 3: "2", 4: "3", 5: "4", 6: "5",
+			7: "6", 8: "7", 9: "8", 10: "9", 11: "0",
+			16: "q", 17: "w", 18: "e", 19: "r", 20: "t",
+			21: "y", 22: "u", 23: "i", 24: "o", 25: "p",
+			30: "a", 31: "s", 32: "d", 33: "f", 34: "g",
+			35: "h", 36: "j", 37: "k", 38: "l",
+			44: "z", 45: "x", 46: "c", 47: "v", 48: "b",
+			49: "n", 50: "m",
+		}
+	)
+	fmt.Println("Press your hotkey combo (e.g. ctrl+alt+z)...")
+
+	pressedMods := map[string]bool{}
+	var mainKey string
+
+	evChan := hook.Start()
+	defer hook.End()
+
+	for ev := range evChan {
+		if ev.Kind != hook.KeyDown {
+			continue
+		}
+
+		if mod, ok := modKeys[ev.Keycode]; ok {
+			pressedMods[mod] = true
+			continue
+		}
+
+		if k, ok := keyMap[ev.Keycode]; ok {
+			mainKey = k
+			break
+		} else {
+			fmt.Println("Invalid key. Only A-Z or 0-9 accepted.")
+			os.Exit(1)
+		}
+	}
+
+	var mods []string
+	for _, mod := range keyOrder {
+		if pressedMods[mod] {
+			mods = append(mods, mod)
+		}
+	}
+	return mods, mainKey
+
+	// mods := []hotkey.Modifier{}
+	// var finalKey rune
+	// for _, mod := range combo {
+	// 	switch mod {
+	// 	case "ctrl":
+	// 		mods = append(mods, hotkey.ModCtrl)
+	// 	case "alt":
+	// 		mods = append(mods, hotkey.ModAlt)
+	// 	case "shift":
+	// 		mods = append(mods, hotkey.ModShift)
+	// 	default:
+	// 		finalKey = []rune(mod)[0]
+	// 	}
+	// }
+
+	// hk := hotkey.New(mods, hotkey.Key(finalKey))
+	// hk.Register()
+	// defer hk.Unregister()
+	// keyChan := hk.Keydown()
+	// for range keyChan {
+	// 	fmt.Println("Combo pressed!")
+	// 	os.Exit(0)
+	// }
 }

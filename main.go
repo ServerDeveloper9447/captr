@@ -54,27 +54,17 @@ func extractFFmpegExe(zipPath, destDir string) error {
 	return os.ErrNotExist
 }
 
-type Config struct {
-	SaveLocation string `json:"save_location"`
-	RecordFunc   bool   `json:"record_func_enabled"`
-	RecordingOpts RecordingOptions `json:"recording_options"`
+type hotkeyConfig struct {
+	Modkeys  []string `json:"modkeys"`
+	Finalkey string   `json:"finalkey"`
+	Note     string   `json:"note"`
 }
 
-func setConfig(key string, value any) {
-	data := make(map[string]any)
-	content, err := os.ReadFile(configFilePath)
-	if err == nil {
-		_ = json.Unmarshal(content, &data)
-	}
-
-	data[key] = value
-
-	updData, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	os.WriteFile(configFilePath, updData, 0644)
-	initConfig()
+type Config struct {
+	SaveLocation  string            `json:"save_location"`
+	RecordFunc    bool              `json:"record_func_enabled"`
+	RecordingOpts *RecordingOptions `json:"recording_options,omitempty"`
+	HotkeyConfig  *hotkeyConfig     `json:"hotkey_config"`
 }
 
 func initConfig() {
@@ -88,8 +78,10 @@ func initConfig() {
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
 		home, _ := os.UserHomeDir()
 		config = Config{
-			SaveLocation: filepath.Join(home, "Desktop"),
-			RecordFunc:   true,
+			SaveLocation:  filepath.Join(home, "Desktop"),
+			RecordFunc:    true,
+			RecordingOpts: nil,
+			HotkeyConfig:  nil,
 		}
 		data, err := json.MarshalIndent(config, "", "  ")
 		if err != nil {
@@ -167,12 +159,14 @@ func initDownloads() {
 	}
 }
 
+const HOTKEY_WARNING = "DO NOT CHANGE THESE MANUALLY UNLESS YOU KNOW WHAT YOU'RE DOING"
+
 func init() {
 	if !(runtime.GOOS == "windows" && runtime.GOARCH == "amd64") {
 		panic("Captr is only supported on Windows x64")
 	}
 	initConfig()
-	configMode := flag.Bool("config", false, "Configure Captr")
+	configMode, reset, hotkeyConfigMode := flag.Bool("config", false, "Configure Captr"), flag.Bool("reset", false, "Reset Captr and delete appdata"), flag.Bool("hotkey", false, "Register a hotkey for stopping recording")
 	flag.Parse()
 	if *configMode {
 		cmd := exec.Command("notepad.exe", configFilePath)
@@ -180,6 +174,37 @@ func init() {
 			fmt.Println("Error starting command:", err)
 			return
 		}
+		os.Exit(0)
+	}
+	if *reset {
+		// Declaring again for safety. Even if anything fails, atleast it won't delete your entire appdata directory
+		appdata, _ := os.UserConfigDir()
+		prompt := promptui.Prompt{
+			Label:     "Are you sure you want to reset Captr",
+			IsConfirm: true,
+		}
+		_, err := prompt.Run()
+		if err != nil {
+			fmt.Println("Action Aborted")
+			os.Exit(0)
+		}
+		err = os.RemoveAll(filepath.Join(appdata, "captr"))
+		if err != nil {
+			fmt.Println("Couldn't delete appdata directory")
+			os.Exit(1)
+		}
+		fmt.Println("Captr has been reset")
+		os.Exit(0)
+	}
+	if *hotkeyConfigMode {
+		mods, finalkey := RegisterHotkey()
+		hotkeyConfig := hotkeyConfig{
+			Modkeys: mods,
+			Finalkey: finalkey,
+			Note:  HOTKEY_WARNING,
+		}
+		setConfig("hotkey_config", hotkeyConfig)
+		fmt.Println("Hotkeys have been registered successfully")
 		os.Exit(0)
 	}
 	initDownloads()

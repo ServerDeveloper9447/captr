@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"path/filepath"
 	"time"
 
@@ -11,15 +10,15 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func takeScreenshot(fileName string, displayNum int) image.Image {
+func takeScreenshot(fileName string, displayNum int) {
 	robotgo.DisplayID = displayNum
 	img, err := robotgo.CaptureImg()
 	if err != nil {
 		fmt.Println(err)
-		return nil
+		return
 	}
 	robotgo.Save(img, fileName)
-	return img
+	CopyImgToClipboard(img)
 }
 
 func Screenshot_Display() {

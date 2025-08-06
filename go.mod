@@ -7,9 +7,11 @@ require (
 	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4
 	github.com/go-vgo/robotgo v0.110.8
 	github.com/manifoldco/promptui v0.9.0
+	github.com/robotn/gohook v0.42.2
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/tailscale/win v0.0.0-20250627215312-f4da2b8ee071
 	golang.design/x/clipboard v0.7.1
+	golang.design/x/hotkey v0.4.1
 )
 
 require (
@@ -38,7 +40,6 @@ require (
 	github.com/vcaesar/screenshot v0.11.1 // indirect
 	github.com/vcaesar/tt v0.20.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.design/x/hotkey v0.4.1 // indirect
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/image v0.29.0 // indirect

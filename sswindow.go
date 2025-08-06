@@ -38,6 +38,7 @@ func Screenshot_Window() {
 	filename := filepath.Join(config.SaveLocation, fmt.Sprintf("Screenshot_%s.png", time.Now().Format("20060102_150405")))
 	robotgo.Save(img, filename)
 	fmt.Printf("Screenshot saved at %s", filename)
+	CopyImgToClipboard(img)
 	notification := toast.Notification{
 		AppID:               "Captr",
 		Title:               "Screenshot Captured",
