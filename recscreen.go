@@ -7,8 +7,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/go-toast/toast"
 	"github.com/go-vgo/robotgo"
 	"github.com/manifoldco/promptui"
 	"golang.design/x/hotkey"
@@ -18,8 +20,6 @@ type RecordingOptions struct {
 	FPS          int    `json:"fps"`
 	CaptureMouse bool   `json:"capture_mouse"`
 	AudioDevice  string `json:"audio_device"`
-	Width        int    `json:"width"`
-	Height       int    `json:"height"`
 }
 
 var defaultOpts = map[string]any{
@@ -27,6 +27,47 @@ var defaultOpts = map[string]any{
 	"capture_mouse": true,
 	"audio_device":  "",
 }
+
+var (
+	keys = map[string]hotkey.Key{
+		"a": hotkey.KeyA,
+		"b": hotkey.KeyB,
+		"c": hotkey.KeyC,
+		"d": hotkey.KeyD,
+		"e": hotkey.KeyE,
+		"f": hotkey.KeyF,
+		"g": hotkey.KeyG,
+		"h": hotkey.KeyH,
+		"i": hotkey.KeyI,
+		"j": hotkey.KeyJ,
+		"k": hotkey.KeyK,
+		"l": hotkey.KeyL,
+		"m": hotkey.KeyM,
+		"n": hotkey.KeyN,
+		"o": hotkey.KeyO,
+		"p": hotkey.KeyP,
+		"q": hotkey.KeyQ,
+		"r": hotkey.KeyR,
+		"s": hotkey.KeyS,
+		"t": hotkey.KeyT,
+		"u": hotkey.KeyU,
+		"v": hotkey.KeyV,
+		"w": hotkey.KeyW,
+		"x": hotkey.KeyX,
+		"y": hotkey.KeyY,
+		"z": hotkey.KeyZ,
+		"0": hotkey.Key0,
+		"1": hotkey.Key1,
+		"2": hotkey.Key2,
+		"3": hotkey.Key3,
+		"4": hotkey.Key4,
+		"5": hotkey.Key5,
+		"6": hotkey.Key6,
+		"7": hotkey.Key7,
+		"8": hotkey.Key8,
+		"9": hotkey.Key9,
+	}
+)
 
 func mergeRecordingDefaults() {
 	data, err := os.ReadFile(configFilePath)
@@ -70,14 +111,11 @@ func mergeRecordingDefaults() {
 	os.WriteFile(configFilePath, out, 0644)
 }
 
-func ternary(cond bool, a, b any) any {
-	if cond {
-		return a
-	}
-	return b
-}
-
 func RecordDisplay() {
+	if config.HotkeyConfig != nil && (len(config.HotkeyConfig.Modkeys) == 0 || config.HotkeyConfig.Finalkey == "") {
+		fmt.Println("Invalid hotkey configured. Please reset Captr.")
+		os.Exit(1)
+	}
 	active_displays := robotgo.DisplaysNum()
 	displays := []string{"Display 1 (Primary)"}
 	for i := 2; i < active_displays; i++ {
@@ -102,10 +140,15 @@ func RecordDisplay() {
 		"-offset_x", strconv.Itoa(x),
 		"-offset_y", strconv.Itoa(y),
 		"-video_size", fmt.Sprintf("%dx%d", w, h),
-		"-draw_mouse", ternary(config.RecordingOpts.CaptureMouse, "1", "0").(string),
+		"-draw_mouse", ternary(config.RecordingOpts.CaptureMouse, "1", "0"),
 		"-i", "desktop",
 		"-c:v", "libx264",
 		"-preset", "ultrafast",
+		"-profile:v", "main",
+		"-level", "4.0",
+		"-pix_fmt", "yuv420p",
+		"-c:a", "aac",
+		"-movflags", "+faststart",
 		"-y", filename,
 	}
 
@@ -117,20 +160,46 @@ func RecordDisplay() {
 		return
 	}
 
-	fmt.Println("Recording started. Press ctrl+shift+3 to stop")
-	ticker := time.NewTicker(time.Second)
-	go func() {
-		defer ticker.Stop()
-		for range ticker.C {
-			select {
-			case <-ticker.C:
-				fmt.Printf("\rRecording time elapsed: %02d:%02d", int(time.Since(start).Minutes()), int(time.Since(start).Seconds())%60)
-			default:
+	var modkeys []hotkey.Modifier
+	func() {
+		if config.HotkeyConfig == nil {
+			modkeys = []hotkey.Modifier{hotkey.ModCtrl, hotkey.ModAlt}
+		} else {
+			pressedKeys := map[string]bool{}
+			for _, key := range config.HotkeyConfig.Modkeys {
+				pressedKeys[key] = true
+			}
+			for _, mod := range []string{"ctrl", "alt", "shift"} {
+				if pressedKeys[mod] {
+					switch mod {
+					case "ctrl":
+						modkeys = append(modkeys, hotkey.ModCtrl)
+					case "alt":
+						modkeys = append(modkeys, hotkey.ModAlt)
+					case "shift":
+						modkeys = append(modkeys, hotkey.ModShift)
+					}
+				}
 			}
 		}
-		fmt.Println()
 	}()
-	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.Key3)
+	fmt.Printf("Recording started. Press %s to stop\n", ternary(config.HotkeyConfig == nil, strings.Join([]string{"ctrl", "alt", "3"}, "+"), strings.Join(append(config.HotkeyConfig.Modkeys, config.HotkeyConfig.Finalkey), "+")))
+	tickStop := make(chan struct{})
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	i := 0
+	last := []string{"🔴", "⚫"}
+	func() {
+		for {
+			select {
+			case <-ticker.C:
+				fmt.Printf("\r%s Recording time elapsed: %02d:%02d", last[i], int(time.Since(start).Minutes()), int(time.Since(start).Seconds())%60)
+				i = (i + 1) % 2
+			case <-tickStop:
+			}
+		}
+	}()
+	hk := hotkey.New(modkeys, ternary(config.HotkeyConfig == nil, hotkey.Key3, keys[config.HotkeyConfig.Finalkey]))
 	err = hk.Register()
 	if err != nil {
 		fmt.Println("Error registering hotkey:", err)
@@ -142,7 +211,19 @@ func RecordDisplay() {
 		fmt.Println("\nStopping recording...")
 		stdin.Write([]byte("q"))
 		stdin.Close()
-		ticker.Stop()
+		tickStop <- struct{}{}
+		notification := toast.Notification{
+			AppID:               "Captr",
+			Title:               "Recording Stopped",
+			Message:             fmt.Sprintf("Recording saved at %s", filename),
+			Icon:                filename,
+			ActivationArguments: filename,
+			Audio:               toast.IM,
+			Actions: []toast.Action{
+				{Type: "protocol", Label: "Open", Arguments: filename},
+			},
+		}
+		notification.Push()
 		break
 	}
 
