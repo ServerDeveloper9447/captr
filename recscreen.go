@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+
 	"strings"
 	"time"
 
@@ -99,6 +100,13 @@ func RecordDisplay() {
 		fmt.Println("Error starting ffmpeg:", err)
 		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("\nUnexpected error:", r)
+		}
+		exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
+	}()
 
 	var modkeys []hotkey.Modifier
 	pressedKeys := map[string]bool{}
