@@ -21,6 +21,20 @@ var (
 	config         Config
 	appdataDir     string
 	configFilePath string
+	defaultConfig  = Config{
+		SaveLocation: filepath.Join(os.Getenv("USERPROFILE"), "Desktop"),
+		RecordFunc:   true,
+		RecordingOpts: RecordingOptions{
+			FPS:          30,
+			CaptureMouse: true,
+			AudioDevice:  "",
+		},
+		HotkeyConfig: hotkeyConfig{
+			Modkeys:  []string{"ctrl", "shift"},
+			Finalkey: "3",
+			Note:     "DO NOT CHANGE ANYTHING MANUALLY IN THIS SECTION UNLESS YOU KNOW WHAT YOU'RE DOING. ALWAYS CHANGE THE HOTKEY VIA THE DEFAULT --hotkey FLAG",
+		},
+	}
 )
 
 func extractFFmpegExe(zipPath, destDir string) error {
@@ -61,10 +75,16 @@ type hotkeyConfig struct {
 }
 
 type Config struct {
-	SaveLocation  string            `json:"save_location"`
-	RecordFunc    bool              `json:"record_func_enabled"`
-	RecordingOpts *RecordingOptions `json:"recording_options,omitempty"`
-	HotkeyConfig  *hotkeyConfig     `json:"hotkey_config"`
+	SaveLocation  string           `json:"save_location"`
+	RecordFunc    bool             `json:"record_func_enabled"`
+	RecordingOpts RecordingOptions `json:"recording_options,omitempty"`
+	HotkeyConfig  hotkeyConfig     `json:"hotkey_config"`
+}
+
+type RecordingOptions struct {
+	FPS          int    `json:"fps"`
+	CaptureMouse bool   `json:"capture_mouse"`
+	AudioDevice  string `json:"audio_device"`
 }
 
 func initConfig() {
@@ -76,13 +96,7 @@ func initConfig() {
 	appdataDir = filepath.Join(appdataDir, "captr")
 	configFilePath = filepath.Join(appdataDir, ".captr_config.json")
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
-		home, _ := os.UserHomeDir()
-		config = Config{
-			SaveLocation:  filepath.Join(home, "Desktop"),
-			RecordFunc:    true,
-			RecordingOpts: nil,
-			HotkeyConfig:  nil,
-		}
+		config = defaultConfig
 		data, err := json.MarshalIndent(config, "", "  ")
 		if err != nil {
 			panic(err)
@@ -94,16 +108,52 @@ func initConfig() {
 		if err != nil {
 			panic(err)
 		}
-		if err := json.Unmarshal(data, &config); err != nil {
+		var loadedConfig Config
+		if err := json.Unmarshal(data, &loadedConfig); err != nil {
 			panic(err)
 		}
+
+		config = mergeConfig(defaultConfig, loadedConfig)
+		mergedData, err := json.MarshalIndent(config, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		os.WriteFile(configFilePath, mergedData, 0644)
 	}
+}
+
+func mergeConfig(defaultConfig, loadedConfig Config) Config {
+	if loadedConfig.SaveLocation == "" {
+		loadedConfig.SaveLocation = defaultConfig.SaveLocation
+	}
+	if !loadedConfig.RecordFunc {
+		loadedConfig.RecordFunc = defaultConfig.RecordFunc
+	}
+	if loadedConfig.RecordingOpts.FPS == 0 {
+		loadedConfig.RecordingOpts.FPS = defaultConfig.RecordingOpts.FPS
+	}
+	if !loadedConfig.RecordingOpts.CaptureMouse {
+		loadedConfig.RecordingOpts.CaptureMouse = defaultConfig.RecordingOpts.CaptureMouse
+	}
+	if loadedConfig.RecordingOpts.AudioDevice == "" {
+		loadedConfig.RecordingOpts.AudioDevice = defaultConfig.RecordingOpts.AudioDevice
+	}
+	if len(loadedConfig.HotkeyConfig.Modkeys) == 0 {
+		loadedConfig.HotkeyConfig.Modkeys = defaultConfig.HotkeyConfig.Modkeys
+	}
+	if loadedConfig.HotkeyConfig.Finalkey == "" {
+		loadedConfig.HotkeyConfig.Finalkey = defaultConfig.HotkeyConfig.Finalkey
+	}
+	if loadedConfig.HotkeyConfig.Note == "" {
+		loadedConfig.HotkeyConfig.Note = defaultConfig.HotkeyConfig.Note
+	}
+
+	return loadedConfig
 }
 
 func initDownloads() {
 	dwnPath := filepath.Join(appdataDir, "bin")
 	if _, err := os.Stat(filepath.Join(dwnPath, "ffmpeg.exe")); err == nil {
-		mergeRecordingDefaults()
 		return
 	}
 	if !config.RecordFunc {
@@ -111,7 +161,6 @@ func initDownloads() {
 	}
 	cmd := exec.Command("ffmpeg", "-version")
 	if err := cmd.Run(); err == nil {
-		mergeRecordingDefaults()
 		return
 	}
 	fmt.Println("Captr requires ffmpeg to record videos. However, the screenshotting functionality is not affected.")
@@ -153,7 +202,6 @@ func initDownloads() {
 		}
 		extractFFmpegExe(filepath.Join(os.TempDir(), "ffmpeg_captr.zip"), dwnPath)
 		fmt.Printf("FFMPEG has been downloaded to %s", dwnPath)
-		mergeRecordingDefaults()
 	} else {
 		setConfig("record_func_enabled", false)
 	}
@@ -180,8 +228,9 @@ func init() {
 		// Declaring again for safety. Even if anything fails, atleast it won't delete your entire appdata directory
 		appdata, _ := os.UserConfigDir()
 		prompt := promptui.Prompt{
-			Label:     "Are you sure you want to reset Captr",
-			IsConfirm: true,
+			Label:       "Are you sure you want to reset Captr",
+			IsConfirm:   true,
+			HideEntered: true,
 		}
 		_, err := prompt.Run()
 		if err != nil {
@@ -199,9 +248,9 @@ func init() {
 	if *hotkeyConfigMode {
 		mods, finalkey := RegisterHotkey()
 		hotkeyConfig := hotkeyConfig{
-			Modkeys: mods,
+			Modkeys:  mods,
 			Finalkey: finalkey,
-			Note:  HOTKEY_WARNING,
+			Note:     HOTKEY_WARNING,
 		}
 		setConfig("hotkey_config", hotkeyConfig)
 		fmt.Println("Hotkeys have been registered successfully")
