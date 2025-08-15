@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/JamesHovious/w32"
-	"github.com/manifoldco/promptui"
 	hook "github.com/robotn/gohook"
 	"golang.design/x/clipboard"
 )
@@ -226,18 +226,17 @@ func chooseWindow() w32.HWND {
 		return 1
 	})
 	_, _, _ = procEnumWindows.Call(cb, 0)
-
-	prompt := promptui.Select{
-		Label: "Select Window",
-		Items: func() []string {
+	var result string
+	err := survey.AskOne(&survey.Select{
+		Message: "Select Window",
+		Options: func() []string {
 			values := []string{}
 			for k := range windows {
 				values = append(values, k)
 			}
 			return values
 		}(),
-	}
-	_, result, err := prompt.Run()
+	}, &result, survey.WithValidator(survey.Required))
 
 	if err != nil {
 		fmt.Printf("Prompt failed %v\n", err)

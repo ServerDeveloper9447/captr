@@ -13,8 +13,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/manifoldco/promptui"
 	"github.com/schollz/progressbar/v3"
+	"github.com/AlecAivazis/survey/v2"
 )
 
 var (
@@ -164,14 +164,15 @@ func initDownloads() {
 		return
 	}
 	fmt.Println("Captr requires ffmpeg to record videos. However, the screenshotting functionality is not affected.")
-	prompt := promptui.Select{
-		Label: "Choose your action",
-		Items: []string{
-			"Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
-			"Keep only screenshotting functionality",
-		},
-	}
-	i, _, err := prompt.Run()
+	var i int
+	err := survey.AskOne(&survey.Select{
+			Message: "Choose your action",
+			Options: []string{
+				"Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
+				"Keep only screenshotting functionality",
+			},
+			Default: "Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
+	}, &i, survey.WithValidator(survey.Required))
 	if err != nil {
 		fmt.Println("Action Cancelled")
 		os.Exit(1)
@@ -227,14 +228,16 @@ func init() {
 	if *reset {
 		// Declaring again for safety. Even if anything fails, atleast it won't delete your entire appdata directory
 		appdata, _ := os.UserConfigDir()
-		prompt := promptui.Prompt{
-			Label:       "Are you sure you want to reset Captr",
-			IsConfirm:   true,
-			HideEntered: true,
-		}
-		_, err := prompt.Run()
+		var decision bool
+		err := survey.AskOne(&survey.Confirm{
+			Message: "Are you sure want to reset Captr?",
+			Default: false,
+		}, &decision, survey.WithValidator(survey.Required))
 		if err != nil {
 			fmt.Println("Action Aborted")
+			os.Exit(0)
+		}
+		if !decision {
 			os.Exit(0)
 		}
 		err = os.RemoveAll(filepath.Join(appdata, "captr"))
@@ -276,13 +279,12 @@ v1.0.1-beta
 `)
 	fmt.Println("Open config file by passing the --config flag")
 	capture_ops := []string{"Record full screen", "Record specific window", "Screenshot specific window", "Screenshot full screen"}
-	prompt := promptui.Select{
-		Label:        "Select Action",
-		Items:        capture_ops,
-		HideSelected: true,
-	}
+	var i int
+	err := survey.AskOne(&survey.Select{
+		Message: "Select Action",
+		Options: capture_ops,
+	}, &i, survey.WithValidator(survey.Required))
 
-	i, _, err := prompt.Run()
 	if err != nil {
 		fmt.Print("Action Cancelled.")
 		return

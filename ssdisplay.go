@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/go-toast/toast"
 	"github.com/go-vgo/robotgo"
-	"github.com/manifoldco/promptui"
 )
 
 func takeScreenshot(fileName string, displayNum int) {
@@ -47,12 +47,11 @@ func Screenshot_Display() {
 	for i := 2; i < active_displays; i++ {
 		displays = append(displays, fmt.Sprintf("Display %d", i))
 	}
-	prompt := promptui.Select{
-		Label: "Select Display",
-		Items: displays,
-	}
-
-	display, _, err := prompt.Run()
+	var display int
+	err := survey.AskOne(&survey.Select{
+		Message: "Select Display",
+		Options: displays,
+	}, &display, survey.WithValidator(survey.Required))
 	if err != nil {
 		fmt.Print("Some error occurred")
 		return
