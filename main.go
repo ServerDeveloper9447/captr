@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -52,7 +53,6 @@ func extractFFmpegExe(zipPath, destDir string) error {
 			}
 			defer rc.Close()
 
-			os.MkdirAll(destDir, 0755)
 			outPath := filepath.Join(destDir, "ffmpeg.exe")
 			outFile, err := os.Create(outPath)
 			if err != nil {
@@ -167,12 +167,12 @@ func initDownloads() {
 	fmt.Println("Captr requires ffmpeg to record videos. However, the screenshotting functionality is not affected.")
 	var i int
 	err := survey.AskOne(&survey.Select{
-			Message: "Choose your action",
-			Options: []string{
-				"Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
-				"Keep only screenshotting functionality",
-			},
-			Default: "Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
+		Message: "Choose your action",
+		Options: []string{
+			"Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
+			"Keep only screenshotting functionality",
+		},
+		Default: "Download ffmpeg (Download size: ~148MB, Install size: ~132MB)",
 	}, &i, survey.WithValidator(survey.Required))
 	if err != nil {
 		fmt.Println("Action Cancelled")
@@ -182,10 +182,47 @@ func initDownloads() {
 		tasks := progressbar.NewDownloadTasks(progressbar.New())
 		defer tasks.Close()
 		os.MkdirAll(dwnPath, 0755)
-		
-		tasks.Add("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip", filepath.Join(dwnPath, "ffmpeg_captr.zip"), progressbar.WithBarSpinner(51))
-		tasks.Wait()
 
+		tasks.Add("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip", filepath.Join(dwnPath, "ffmpeg_captr.zip"), progressbar.WithBarSpinner(51))
+		tasks.Add("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256", filepath.Join(dwnPath, "checksums.sha256"), progressbar.WithBarSpinner(51))
+		tasks.Wait()
+		fmt.Println("Checking sha256 hash of the downloaded file.")
+		file, err := os.ReadFile(filepath.Join(dwnPath, "checksums.sha256"))
+		if err != nil {
+			fmt.Println("Cannot open checksum file for the download. Aborting install...")
+			os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
+			os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
+			os.Exit(1)
+		}
+		lines := strings.SplitSeq(string(file), "\n")
+		for line := range lines {
+			if strings.HasSuffix(line, "ffmpeg-n7.1-latest-win64-gpl-7.1.zip") {
+				shaHash := strings.Split(line, " ")[0]
+				f, err := os.Open(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
+				if err != nil {
+					fmt.Println(err)
+					fmt.Println("Cannot match checksum file of the download. Aborting install...")
+					os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
+					os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
+					os.Exit(1)
+				}
+				defer f.Close()
+				h := sha256.New()
+				if _, err := io.Copy(h, f); err != nil {
+					fmt.Println("Cannot generate sha256 for the download. Aborting install...")
+					os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
+					os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
+					os.Exit(1)
+				}
+				if shaHash != fmt.Sprintf("%x", h.Sum(nil)) {
+					fmt.Println("SHA256 hash unmatched for the downloaded file. Install aborted.")
+					fmt.Printf("Expected hash: %s\nHash got: %x", shaHash, h.Sum(nil))
+					os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
+					os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
+					os.Exit(1)
+				}
+			}
+		}
 		extractFFmpegExe(filepath.Join(dwnPath, "ffmpeg_captr.zip"), dwnPath)
 		fmt.Printf("FFMPEG has been downloaded to %s", dwnPath)
 	} else {
