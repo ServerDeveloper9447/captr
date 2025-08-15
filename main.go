@@ -6,15 +6,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
+
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/hedzr/progressbar"
 )
 
 var (
@@ -61,6 +61,7 @@ func extractFFmpegExe(zipPath, destDir string) error {
 			defer outFile.Close()
 
 			_, err = io.Copy(outFile, rc)
+			os.Remove(zipPath)
 			return err
 		}
 	}
@@ -178,30 +179,14 @@ func initDownloads() {
 		os.Exit(1)
 	}
 	if i == 0 {
-		resp, err := http.Get("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip")
-		if err != nil {
-			fmt.Println("Couldn't download ffmpeg")
-			os.Exit(1)
-		}
-		defer resp.Body.Close()
-		bar := progressbar.DefaultBytes(
-			resp.ContentLength,
-			"Downloading ffmpeg",
-		)
+		tasks := progressbar.NewDownloadTasks(progressbar.New())
+		defer tasks.Close()
+		os.MkdirAll(dwnPath, 0755)
+		
+		tasks.Add("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip", filepath.Join(dwnPath, "ffmpeg_captr.zip"), progressbar.WithBarSpinner(51))
+		tasks.Wait()
 
-		out, err := os.Create(filepath.Join(os.TempDir(), "ffmpeg_captr.zip"))
-		if err != nil {
-			fmt.Println("Couldn't download ffmpeg")
-			os.Exit(1)
-		}
-		defer out.Close()
-
-		_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
-		if err != nil {
-			fmt.Printf("Couldn't download ffmpeg.")
-			os.Exit(1)
-		}
-		extractFFmpegExe(filepath.Join(os.TempDir(), "ffmpeg_captr.zip"), dwnPath)
+		extractFFmpegExe(filepath.Join(dwnPath, "ffmpeg_captr.zip"), dwnPath)
 		fmt.Printf("FFMPEG has been downloaded to %s", dwnPath)
 	} else {
 		setConfig("record_func_enabled", false)
@@ -274,7 +259,7 @@ ________/\\\\\\\\\__________________________________________________________
        ____\////\\\\\\\\\_\//\\\\\\\\/\\_\/\\\____________\//\\\\\___\/\\\_________ 
         _______\/////////___\////////\//__\///______________\/////____\///__________
 
-v1.0.1-beta
+v1.0.2
 
 `)
 	fmt.Println("Open config file by passing the --config flag")

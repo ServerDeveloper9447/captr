@@ -3,14 +3,14 @@
 **Captr** is a lightweight screen capturing and recording tool written in Go. It's designed for speed, simplicity, and minimal resource usage.
 (Windows OS Only)
 
-> **Status:** Beta  
+> **Status:** Release  
 > Currently supports full-screen, window-specific screenshots and full-screen recording. Window specific recording is still in development.
 
 ## Features
 
 - 📸 Capture full-screen screenshots  
 - 🖼️ Capture specific window screenshots  
-- 🎥 Screen recording (coming soon)
+- 🎥 Screen recording
 
 ## Installation
 **It's a portable executable file. Doesn't need any installation.**<br><br>
@@ -30,7 +30,7 @@ For recording functionaility, you must have `ffmpeg` installed and added to path
 - [x] Full-Screen Screenshots
 - [x] Window-Specific Screenshots
 - [x] Screen Recording
-- [ ] Window Recording
+- [ ] Window Recording [DELAYED]
 
 ## Build Yourself
 ### Prerequisites

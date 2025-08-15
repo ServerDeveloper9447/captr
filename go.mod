@@ -7,8 +7,8 @@ require (
 	github.com/JamesHovious/w32 v1.2.0
 	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4
 	github.com/go-vgo/robotgo v0.110.8
+	github.com/hedzr/progressbar v1.2.8
 	github.com/robotn/gohook v0.42.2
-	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/tailscale/win v0.0.0-20250627215312-f4da2b8ee071
 	golang.design/x/clipboard v0.7.1
 	golang.design/x/hotkey v0.4.1
@@ -26,12 +26,10 @@ require (
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
-	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/otiai10/gosseract v2.2.1+incompatible // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robotn/xgb v0.10.0 // indirect
 	github.com/robotn/xgbutil v0.10.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.7 // indirect
