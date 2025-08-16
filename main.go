@@ -28,7 +28,6 @@ var (
 		RecordingOpts: RecordingOptions{
 			FPS:          30,
 			CaptureMouse: true,
-			AudioDevice:  "",
 		},
 		HotkeyConfig: hotkeyConfig{
 			Modkeys:  []string{"ctrl", "shift"},
@@ -61,7 +60,6 @@ func extractFFmpegExe(zipPath, destDir string) error {
 			defer outFile.Close()
 
 			_, err = io.Copy(outFile, rc)
-			os.Remove(zipPath)
 			return err
 		}
 	}
@@ -75,11 +73,17 @@ type hotkeyConfig struct {
 	Note     string   `json:"note"`
 }
 
+type streamConfig struct {
+	YoutubeStreamKey string `json:"ytstreamkey"`
+	TwitchStreamKey  string `json:"twitchstreamkey"`
+}
+
 type Config struct {
 	SaveLocation  string           `json:"save_location"`
 	RecordFunc    bool             `json:"record_func_enabled"`
 	RecordingOpts RecordingOptions `json:"recording_options,omitempty"`
 	HotkeyConfig  hotkeyConfig     `json:"hotkey_config"`
+	StreamConfig  streamConfig     `json:"stream_config"`
 }
 
 type RecordingOptions struct {
@@ -111,7 +115,7 @@ func initConfig() {
 		}
 		var loadedConfig Config
 		if err := json.Unmarshal(data, &loadedConfig); err != nil {
-			panic(err)
+			os.WriteFile(configFilePath, []byte{'{', '}'}, 0644)
 		}
 
 		config = mergeConfig(defaultConfig, loadedConfig)
@@ -186,6 +190,7 @@ func initDownloads() {
 		tasks.Add("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip", filepath.Join(dwnPath, "ffmpeg_captr.zip"), progressbar.WithBarSpinner(51))
 		tasks.Add("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256", filepath.Join(dwnPath, "checksums.sha256"), progressbar.WithBarSpinner(51))
 		tasks.Wait()
+		tasks.Close()
 		fmt.Println("Checking sha256 hash of the downloaded file.")
 		file, err := os.ReadFile(filepath.Join(dwnPath, "checksums.sha256"))
 		if err != nil {
@@ -200,20 +205,22 @@ func initDownloads() {
 				shaHash := strings.Split(line, " ")[0]
 				f, err := os.Open(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
 				if err != nil {
+					f.Close()
 					fmt.Println(err)
 					fmt.Println("Cannot match checksum file of the download. Aborting install...")
 					os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
 					os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
 					os.Exit(1)
 				}
-				defer f.Close()
 				h := sha256.New()
 				if _, err := io.Copy(h, f); err != nil {
+					f.Close()
 					fmt.Println("Cannot generate sha256 for the download. Aborting install...")
 					os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
 					os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
 					os.Exit(1)
 				}
+				f.Close()
 				if shaHash != fmt.Sprintf("%x", h.Sum(nil)) {
 					fmt.Println("SHA256 hash unmatched for the downloaded file. Install aborted.")
 					fmt.Printf("Expected hash: %s\nHash got: %x", shaHash, h.Sum(nil))
@@ -223,7 +230,19 @@ func initDownloads() {
 				}
 			}
 		}
-		extractFFmpegExe(filepath.Join(dwnPath, "ffmpeg_captr.zip"), dwnPath)
+		err = extractFFmpegExe(filepath.Join(dwnPath, "ffmpeg_captr.zip"), dwnPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = os.Remove(filepath.Join(dwnPath, "checksums.sha256"))
+		if err != nil {
+			fmt.Println(err)
+		}
+		err = os.Remove(filepath.Join(dwnPath, "ffmpeg_captr.zip"))
+		if err != nil {
+			fmt.Println(err)
+		}
 		fmt.Printf("FFMPEG has been downloaded to %s", dwnPath)
 	} else {
 		setConfig("record_func_enabled", false)
@@ -300,7 +319,7 @@ v1.0.2
 
 `)
 	fmt.Println("Open config file by passing the --config flag")
-	capture_ops := []string{"Record full screen", "Record specific window", "Screenshot specific window", "Screenshot full screen"}
+	capture_ops := []string{"Record full screen", "Record specific window", "Screenshot specific window", "Screenshot full screen", "Stream a display"}
 	var i int
 	err := survey.AskOne(&survey.Select{
 		Message: "Select Action",
@@ -315,9 +334,13 @@ v1.0.2
 	switch i {
 	case 0:
 		RecordDisplay()
+	case 1:
+		RecordWindow()
 	case 2:
 		Screenshot_Window()
 	case 3:
 		Screenshot_Display()
+	case 4:
+		StreamDisp()
 	}
 }

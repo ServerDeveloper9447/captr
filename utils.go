@@ -242,7 +242,7 @@ func chooseWindow() w32.HWND {
 		fmt.Printf("Prompt failed %v\n", err)
 		return w32.HWND(0)
 	}
-
+	
 	return windows[result]
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -9,89 +10,36 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/go-toast/toast"
-	"github.com/go-vgo/robotgo"
 	"golang.design/x/hotkey"
 )
 
-var (
-	keys = map[string]hotkey.Key{
-		"a": hotkey.KeyA,
-		"b": hotkey.KeyB,
-		"c": hotkey.KeyC,
-		"d": hotkey.KeyD,
-		"e": hotkey.KeyE,
-		"f": hotkey.KeyF,
-		"g": hotkey.KeyG,
-		"h": hotkey.KeyH,
-		"i": hotkey.KeyI,
-		"j": hotkey.KeyJ,
-		"k": hotkey.KeyK,
-		"l": hotkey.KeyL,
-		"m": hotkey.KeyM,
-		"n": hotkey.KeyN,
-		"o": hotkey.KeyO,
-		"p": hotkey.KeyP,
-		"q": hotkey.KeyQ,
-		"r": hotkey.KeyR,
-		"s": hotkey.KeyS,
-		"t": hotkey.KeyT,
-		"u": hotkey.KeyU,
-		"v": hotkey.KeyV,
-		"w": hotkey.KeyW,
-		"x": hotkey.KeyX,
-		"y": hotkey.KeyY,
-		"z": hotkey.KeyZ,
-		"0": hotkey.Key0,
-		"1": hotkey.Key1,
-		"2": hotkey.Key2,
-		"3": hotkey.Key3,
-		"4": hotkey.Key4,
-		"5": hotkey.Key5,
-		"6": hotkey.Key6,
-		"7": hotkey.Key7,
-		"8": hotkey.Key8,
-		"9": hotkey.Key9,
-	}
-)
-
-func RecordDisplay() {
-	active_displays := robotgo.DisplaysNum()
-	displays := []string{"Display 1 (Primary)"}
-	for i := 2; i < active_displays; i++ {
-		displays = append(displays, fmt.Sprintf("Display %d", i))
-	}
-	var display int
-	err := survey.AskOne(&survey.Select{
-		Message: "Select Display",
-		Options: displays,
-	}, &display, survey.WithValidator(survey.Required))
-	if err != nil {
-		fmt.Print("Action Aborted")
-		return
-	}
-
-	_, _, w, h := robotgo.GetDisplayBounds(display)
-	filename := filepath.Join(config.SaveLocation, fmt.Sprintf("Recording_Disp%d_%dx%d_%s.mp4", display+1, w, h, time.Now().Format("20060102_150405")))
+func RecordWindow() {
+	hwnd := chooseWindow()
+	ActivateWindowAndGetBounds(uintptr(hwnd))
+	filename := filepath.Join(config.SaveLocation, fmt.Sprintf("Recording_%s.mp4", time.Now().Format("20060102_150405")))
 	args := []string{
-		"-filter_complex", fmt.Sprintf("ddagrab=output_idx=%d:framerate=%d,hwdownload,format=bgra", display, config.RecordingOpts.FPS),
-		"-video_size", fmt.Sprintf("%dx%d", w, h),
+		"-f", "gdigrab",
+		"-framerate", fmt.Sprintf("%d", config.RecordingOpts.FPS),
 		"-draw_mouse", ternary(config.RecordingOpts.CaptureMouse, "1", "0"),
+		"-show_region", "1",
+		"-i", fmt.Sprintf("hwnd=%d", uintptr(hwnd)),
+		"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
 		"-c:v", "libx264",
 		"-preset", "ultrafast",
 		"-profile:v", "main",
 		"-level", "4.0",
 		"-pix_fmt", "yuv420p",
-		"-c:a", "aac",
 		"-movflags", "+faststart",
-		"-f", "mp4",
 		"-y", filename,
 	}
 
 	cmd := exec.Command(getFfmpegPath(), args...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	stdin, _ := cmd.StdinPipe()
 	var start time.Time
+	var err error
 	if err, start = cmd.Start(), time.Now(); err != nil {
 		fmt.Println("Error starting ffmpeg:", err)
 		return
@@ -137,6 +85,12 @@ func RecordDisplay() {
 			}
 		}
 	}()
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			fmt.Println("Error waiting for ffmpeg to exit:", err)
+		}
+	}()
 	hk := hotkey.New(modkeys, keys[config.HotkeyConfig.Finalkey])
 	err = hk.Register()
 	if err != nil {
@@ -165,9 +119,5 @@ func RecordDisplay() {
 		break
 	}
 
-	err = cmd.Wait()
-	if err != nil {
-		fmt.Println("Error waiting for ffmpeg to exit:", err)
-	}
 	fmt.Printf("\nRecording stopped. Recording saved at %s", filename)
 }
