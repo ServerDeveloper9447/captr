@@ -4,13 +4,15 @@
 (Windows OS Only)
 
 > **Status:** Release  
-> Currently supports full-screen, window-specific screenshots and full-screen recording. Window specific recording is still in development.
+> Currently supports full-screen, window-specific screenshots and full-screen recording. Supports streaming to youtube and twitch. Window specific recording is partially implemented.
 
 ## Features
 
 - 📸 Capture full-screen screenshots  
 - 🖼️ Capture specific window screenshots  
 - 🎥 Screen recording
+- 🎥 Window specific recording (partially implemented)
+- 🎥 Stream display to twitch or youtube
 
 ## Installation
 **It's a portable executable file. Doesn't need any installation.**<br><br>
@@ -19,7 +21,8 @@
 ## Usage
 Download the exe from the releases or [build yourself](#build-yourself).<br>
 Run the exe to use it.<br>
-For recording functionaility, you must have `ffmpeg` installed and added to path. If you don't have it, the app has the prebuilt prompt to download ffmpeg to the `%appdata%\captr\bin` folder in appdata to use.
+For recording and streaming functionaility, you must have `ffmpeg` installed and added to path. If you don't have it, the app has the prebuilt prompt to download ffmpeg to the `%appdata%\captr\bin` folder in appdata to use.<br>
+**For audio, please  manually configure the config file or enable "Stereo Mix" device in windows settings.**
 
 ### Flags
 - `--config`: Opens the config file in the notepad for manual edits.
@@ -30,7 +33,8 @@ For recording functionaility, you must have `ffmpeg` installed and added to path
 - [x] Full-Screen Screenshots
 - [x] Window-Specific Screenshots
 - [x] Screen Recording
-- [ ] Window Recording [DELAYED]
+- [x] Stream to Youtube and Twitch
+- [x] Window Recording [Partial]
 
 ## Build Yourself
 ### Prerequisites

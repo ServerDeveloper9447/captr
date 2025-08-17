@@ -239,8 +239,8 @@ func chooseWindow() w32.HWND {
 	}, &result, survey.WithValidator(survey.Required))
 
 	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-		return w32.HWND(0)
+		fmt.Printf("Prompt failed")
+		os.Exit(0)
 	}
 	
 	return windows[result]
@@ -446,11 +446,11 @@ func getFfmpegPath() string {
 	return filepath.Join(appdataDir, "bin", "ffmpeg.exe")
 }
 
-func ternary[T any](cond bool, a, b T) T {
+func ternary[T any](cond bool, trueval, falseval T) T {
 	if cond {
-		return a
+		return trueval
 	}
-	return b
+	return falseval
 }
 
 func RegisterHotkey() ([]string, string) {

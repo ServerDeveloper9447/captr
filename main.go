@@ -28,6 +28,7 @@ var (
 		RecordingOpts: RecordingOptions{
 			FPS:          30,
 			CaptureMouse: true,
+			AudioDevice:  "Stereo Mix (Realtek(R) Audio)",
 		},
 		HotkeyConfig: hotkeyConfig{
 			Modkeys:  []string{"ctrl", "shift"},
@@ -81,7 +82,7 @@ type streamConfig struct {
 type Config struct {
 	SaveLocation  string           `json:"save_location"`
 	RecordFunc    bool             `json:"record_func_enabled"`
-	RecordingOpts RecordingOptions `json:"recording_options,omitempty"`
+	RecordingOpts RecordingOptions `json:"recording_options"`
 	HotkeyConfig  hotkeyConfig     `json:"hotkey_config"`
 	StreamConfig  streamConfig     `json:"stream_config"`
 }
@@ -257,7 +258,6 @@ func init() {
 	}
 	initConfig()
 	configMode, reset, hotkeyConfigMode := flag.Bool("config", false, "Configure Captr"), flag.Bool("reset", false, "Reset Captr and delete appdata"), flag.Bool("hotkey", false, "Register a hotkey for stopping recording")
-	flag.Parse()
 	if *configMode {
 		cmd := exec.Command("notepad.exe", configFilePath)
 		if err := cmd.Start(); err != nil {
@@ -315,7 +315,7 @@ ________/\\\\\\\\\__________________________________________________________
        ____\////\\\\\\\\\_\//\\\\\\\\/\\_\/\\\____________\//\\\\\___\/\\\_________ 
         _______\/////////___\////////\//__\///______________\/////____\///__________
 
-v1.0.2
+v2.0.0
 
 `)
 	fmt.Println("Open config file by passing the --config flag")

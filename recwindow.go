@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -35,8 +34,6 @@ func RecordWindow() {
 	}
 
 	cmd := exec.Command(getFfmpegPath(), args...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
 	stdin, _ := cmd.StdinPipe()
 	var start time.Time
 	var err error
