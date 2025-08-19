@@ -39,7 +39,7 @@ func StreamDisp() {
 	var service string
 	err = survey.AskOne(&survey.Select{
 		Message: "Select Service",
-		Options: []string{"Youtube", "Twitch", "Twitch (Test Stream)"},
+		Options: []string{"Youtube", "Twitch", "Twitch (Test Stream)", "Both"},
 	}, &service, survey.WithValidator(survey.Required))
 	if err != nil {
 		fmt.Println("Some error occurred")
@@ -91,7 +91,7 @@ func StreamDisp() {
 			"-f", "flv",
 			fmt.Sprintf("%s/%s", YOUTUBE_RTMP, key),
 		}
-		fmt.Println("./ffmpeg", strings.Join(args, " "))
+
 		cmd := exec.Command(getFfmpegPath(), args...)
 		stdin, _ := cmd.StdinPipe()
 		var start time.Time
@@ -125,6 +125,7 @@ func StreamDisp() {
 			err = cmd.Wait()
 			if err != nil {
 				fmt.Println("Error waiting for ffmpeg to exit:", err)
+				os.Exit(1)
 			}
 		}()
 		hk := hotkey.New(modkeys, keys[config.HotkeyConfig.Finalkey])
@@ -176,7 +177,7 @@ func StreamDisp() {
 			fmt.Sprintf("%s/%s", TWITCH_RTMP, ternary(service == "Twitch (Test Stream)", fmt.Sprintf("%s?bandwidthtest=true", key), key)),
 		}
 		cmd := exec.Command(getFfmpegPath(), args...)
-		stdin, _ :=  cmd.StdinPipe()
+		stdin, _ := cmd.StdinPipe()
 		var start time.Time
 		if err, start = cmd.Start(), time.Now(); err != nil {
 			fmt.Println("Cannot start ffmpeg")
@@ -208,6 +209,105 @@ func StreamDisp() {
 			err = cmd.Wait()
 			if err != nil {
 				fmt.Println("Error waiting for ffmpeg to exit:", err)
+				os.Exit(1)
+			}
+		}()
+		hk := hotkey.New(modkeys, keys[config.HotkeyConfig.Finalkey])
+		err = hk.Register()
+		if err != nil {
+			fmt.Println("Error registering hotkey:", err)
+			return
+		}
+		defer hk.Unregister()
+		keyChan := hk.Keydown()
+		for range keyChan {
+			tickStop <- struct{}{}
+			stdin.Write([]byte("q"))
+			stdin.Close()
+			fmt.Println("\nStopping streaming...")
+			notif := toast.Notification{
+				AppID: "Captr",
+				Title: "Streaming stopped",
+			}
+			notif.Push()
+			break
+		}
+		fmt.Println("\nStreaming stopped")
+	case "Both":
+		twitchKey := config.StreamConfig.TwitchStreamKey
+		ytKey := config.StreamConfig.YoutubeStreamKey
+		if twitchKey == "" {
+			fmt.Println("Twitch stream key not set")
+			err := survey.AskOne(&survey.Password{
+				Message: "Enter your stream key for Twitch:",
+			}, &twitchKey, survey.WithValidator(survey.Required))
+			if err != nil {
+				fmt.Println("Error asking for prompt")
+				return
+			}
+			stream_config := config.StreamConfig
+			stream_config.TwitchStreamKey = twitchKey
+			setConfig("stream_config", stream_config)
+		}
+		if ytKey == "" {
+			fmt.Println("YouTube stream key not set")
+			err := survey.AskOne(&survey.Password{
+				Message: "Enter your stream key for YouTube: ",
+			}, &ytKey, survey.WithValidator(survey.Required))
+			if err != nil {
+				fmt.Println("Error asking for prompt")
+				return
+			}
+			stream_config := config.StreamConfig
+			stream_config.YoutubeStreamKey = ytKey
+			setConfig("stream_config", stream_config)
+		}
+		args := []string{
+			"-filter_complex", fmt.Sprintf("ddagrab=output_idx=%d:framerate=%d:draw_mouse=%d,hwdownload,format=bgra", display, config.RecordingOpts.FPS, ternary(config.RecordingOpts.CaptureMouse, 1, 0)),
+			"-f", "dshow",
+			"-i", fmt.Sprintf("audio=%s", config.RecordingOpts.AudioDevice),
+			"-c:v", "libx264",
+			"-preset", "veryfast",
+			"-b:v", "3000k",
+			"-c:a", "aac",
+			"-pix_fmt", "yuv420p",
+			"-f", "flv",
+			fmt.Sprintf("tee:%s/%s|%s/%s?bandwidthtest=true", YOUTUBE_RTMP, ytKey, TWITCH_RTMP, twitchKey),
+		}
+		cmd := exec.Command(getFfmpegPath(), args...)
+		stdin, _ := cmd.StdinPipe()
+		var start time.Time
+		if err, start = cmd.Start(), time.Now(); err != nil {
+			fmt.Println("Cannot start ffmpeg")
+			os.Exit(0)
+		}
+		fmt.Printf("Streaming started. Press %s to stop\n", strings.Join(append(config.HotkeyConfig.Modkeys, config.HotkeyConfig.Finalkey), "+"))
+		tickStop := make(chan struct{})
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		i := 0
+		last := []string{"🔴", "⚫"}
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					fmt.Printf("\r%s Streaming time elapsed: %02d:%02d", last[i], int(time.Since(start).Minutes()), int(time.Since(start).Seconds())%60)
+					i = (i + 1) % 2
+				case <-tickStop:
+				}
+			}
+		}()
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Println("\nUnexpected error:", r)
+			}
+			exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
+		}()
+		go func() {
+			err = cmd.Wait()
+			if err != nil {
+				fmt.Println("Error waiting for ffmpeg to exit:", err)
+				os.Exit(1)
 			}
 		}()
 		hk := hotkey.New(modkeys, keys[config.HotkeyConfig.Finalkey])

@@ -300,6 +300,20 @@ func init() {
 		fmt.Println("Hotkeys have been registered successfully")
 		os.Exit(0)
 	}
+
+	resetYtStreamKey, resetTwitchStreamKey := flag.Bool("rytkey", false, "Reset Youtube stream key"), flag.Bool("rtwkey", false, "Reset Twitch stream key")
+	if *resetYtStreamKey {
+		streamConfig := config.StreamConfig
+		streamConfig.YoutubeStreamKey = ""
+		setConfig("stream_config", streamConfig)
+		fmt.Println("YouTube stream key reset.")
+	}
+	if *resetTwitchStreamKey {
+		streamConfig := config.StreamConfig
+		streamConfig.TwitchStreamKey = ""
+		setConfig("stream_config", streamConfig)
+		fmt.Println("Twitch stream key reset.")
+	}
 	initDownloads()
 }
 
